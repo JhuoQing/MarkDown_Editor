@@ -3,104 +3,292 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Markdown 暫存編輯器</title>
+<title>Markdown 稿紙</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;600&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-<style>
-  :root {
-    --bg: #f7f7f5; --panel: #ffffff; --border: #e2e2de;
-    --text: #222; --muted: #888; --accent: #3b6cf6; --danger: #d33;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; height: 100vh; display: flex; flex-direction: column;
-    font-family: system-ui, -apple-system, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-    background: var(--bg); color: var(--text);
-  }
-  header {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel);
-  }
-  header h1 { font-size: 16px; margin: 0 12px 0 0; }
-  button {
-    font: inherit; padding: 6px 12px; border: 1px solid var(--border);
-    background: #fff; border-radius: 6px; cursor: pointer; color: var(--text);
-  }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button.danger:hover { border-color: var(--danger); color: var(--danger); }
-  .toggle { display: flex; align-items: center; gap: 4px; font-size: 14px; cursor: pointer; user-select: none; }
-  #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 
-  main {
-    flex: 1; display: grid; grid-template-columns: 200px 1fr 1fr; min-height: 0;
+<style>
+  /* ---------- 色彩：稿紙的綠格、墨色、印章紅 ---------- */
+  :root {
+    --desk:    #E6ECE8;
+    --panel:   #F3F6F3;
+    --paper:   #FDFEFB;
+    --ink:     #1B2826;
+    --muted:   #6A7A76;
+    --line:    #CBD8D2;
+    --grid:    #E2EBE6;
+    --accent:  #1F6F66;
+    --on-accent: #FFFFFF;
+    --seal:    #C23B2E;
+    --danger:  #B3342B;
+    --select:  #BFE3DA;
+    --shadow:  0 1px 2px rgba(27,40,38,.06), 0 8px 24px -12px rgba(27,40,38,.18);
+    color-scheme: light;
   }
-  aside { border-right: 1px solid var(--border); background: var(--panel); overflow: auto; }
-  aside ul { list-style: none; margin: 0; padding: 0; }
-  aside li {
-    padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0ee; font-size: 14px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  :root[data-theme="dark"] {
+    --desk:    #0D1413;
+    --panel:   #121B1A;
+    --paper:   #182322;
+    --ink:     #DDE8E4;
+    --muted:   #8A9B96;
+    --line:    #2A3B38;
+    --grid:    #1F2E2C;
+    --accent:  #5CC0B0;
+    --on-accent: #08201C;
+    --seal:    #D4503F;
+    --danger:  #E5766A;
+    --select:  #24504A;
+    --shadow:  0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+    color-scheme: dark;
   }
-  aside li:hover { background: #fafafa; }
-  aside li.active { background: #eef3ff; color: var(--accent); font-weight: 600; }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    font-family: "Noto Sans TC", system-ui, -apple-system, "Microsoft JhengHei", sans-serif;
+    font-size: 14px; color: var(--ink); background: var(--desk);
+  }
+  ::selection { background: var(--select); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- 頂欄 ---------- */
+  header {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 14px; }
+  .seal {
+    width: 30px; height: 30px; border-radius: 3px; background: var(--seal); color: #fff;
+    display: grid; place-items: center; transform: rotate(-4deg);
+    font: 700 17px/1 "Noto Serif TC", serif;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.28);
+  }
+  .brand h1 { margin: 0; font: 600 17px/1 "Noto Serif TC", serif; letter-spacing: .06em; }
+
+  .group { display: flex; gap: 2px; }
+  .group + .group { margin-left: 8px; padding-left: 10px; border-left: 1px solid var(--line); }
+  button {
+    font: inherit; color: var(--ink); background: transparent; cursor: pointer;
+    border: 1px solid transparent; border-radius: 6px; padding: 6px 11px;
+    transition: background .12s, border-color .12s;
+  }
+  button:hover { background: var(--grid); }
+  button.danger:hover { color: var(--danger); background: transparent; border-color: var(--danger); }
+  button.primary { background: var(--accent); color: var(--on-accent); font-weight: 500; }
+  button.primary:hover { filter: brightness(1.08); background: var(--accent); }
+
+  .toggle {
+    display: flex; align-items: center; gap: 7px; padding: 6px 10px; cursor: pointer;
+    border-radius: 6px; user-select: none;
+  }
+  .toggle:hover { background: var(--grid); }
+  .toggle input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; cursor: pointer; }
+  .spacer { margin-left: auto; }
+
+  /* ---------- 主版面 ---------- */
+  main { flex: 1; display: grid; grid-template-columns: 216px minmax(0,1fr) minmax(0,1fr); min-height: 0; }
+
+  aside { background: var(--desk); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .aside-top { padding: 12px; }
+  .aside-top button { width: 100%; padding: 8px; }
+  #doc-list { list-style: none; margin: 0; padding: 0 8px 12px; overflow: auto; flex: 1; }
+  #doc-list li {
+    position: relative; padding: 9px 12px 9px 16px; margin-bottom: 2px; border-radius: 6px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  #doc-list li:hover { background: var(--grid); }
+  #doc-list li.active { background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+  #doc-list li.active::before {
+    content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--seal);
+  }
+  .doc-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-meta  { font-size: 12px; color: var(--muted); }
 
   #editor {
-    border: 0; border-right: 1px solid var(--border); resize: none; outline: none;
-    padding: 16px; background: var(--panel); min-height: 0;
-    font: 14px/1.6 ui-monospace, SFMono-Regular, Consolas, "Noto Sans Mono CJK TC", monospace;
+    border: 0; border-right: 1px solid var(--line); resize: none; outline: none; min-height: 0;
+    padding: 28px 30px; background: var(--panel); color: var(--ink); caret-color: var(--accent);
+    font: 14px/1.85 "JetBrains Mono", ui-monospace, Consolas, "Noto Sans Mono CJK TC", "Noto Sans TC", monospace;
+    tab-size: 2;
   }
-  #preview { padding: 16px 24px; overflow: auto; background: var(--panel); min-height: 0; line-height: 1.7; }
-  #preview img { max-width: 100%; }
-  #preview pre { background: #f4f4f2; padding: 12px; overflow: auto; border-radius: 6px; }
-  #preview code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
-  #preview blockquote { border-left: 3px solid var(--border); margin-left: 0; padding-left: 12px; color: #555; }
-  #preview table { border-collapse: collapse; }
-  #preview th, #preview td { border: 1px solid var(--border); padding: 4px 8px; }
+  #editor::placeholder { color: var(--muted); }
 
-  @media (max-width: 800px) {
-    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr 1fr; }
-    aside { max-height: 120px; border-right: 0; border-bottom: 1px solid var(--border); }
-    #editor { border-right: 0; border-bottom: 1px solid var(--border); }
+  #preview { overflow: auto; min-height: 0; background: var(--panel); padding: 24px 28px 48px; }
+
+  /* 預覽：一張稿紙 */
+  #sheet {
+    max-width: 760px; margin: 0 auto; padding: 44px 56px 52px;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    border: 1px solid var(--line); border-radius: 4px; box-shadow: var(--shadow);
+    font: 400 16.5px/2 "Noto Serif TC", "Songti TC", serif;
+    overflow-wrap: anywhere;
   }
+  #sheet > :first-child { margin-top: 0; }
+  #sheet > :last-child  { margin-bottom: 0; }
+  #sheet h1, #sheet h2, #sheet h3, #sheet h4 { font-weight: 700; line-height: 1.5; letter-spacing: .02em; margin: 1.6em 0 .6em; }
+  #sheet h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 2px solid var(--ink); }
+  #sheet h2 { font-size: 1.5em; padding-bottom: .2em; border-bottom: 1px solid var(--line); }
+  #sheet h3 { font-size: 1.2em; }
+  #sheet h4 { font-size: 1em; color: var(--muted); }
+  #sheet p, #sheet ul, #sheet ol, #sheet blockquote, #sheet pre, #sheet table { margin: 0 0 1em; }
+  #sheet ul, #sheet ol { padding-left: 1.6em; }
+  #sheet li::marker { color: var(--seal); }
+  #sheet a { color: var(--accent); text-underline-offset: 3px; }
+  #sheet hr { border: 0; height: 1px; background: var(--line); margin: 2em 0; }
+  #sheet img { max-width: 100%; height: auto; }
+  #sheet blockquote {
+    padding: .1em 1.1em; color: var(--muted); background: color-mix(in srgb, var(--paper) 70%, transparent);
+    border-left: 3px solid var(--accent);
+  }
+  #sheet code {
+    font: 400 .86em "JetBrains Mono", ui-monospace, Consolas, monospace;
+    background: var(--grid); padding: .12em .4em; border-radius: 4px;
+  }
+  #sheet pre { background: var(--panel); border: 1px solid var(--line); padding: 14px 18px; overflow: auto; border-radius: 4px; line-height: 1.7; }
+  #sheet pre code { background: none; padding: 0; font-size: 13.5px; }
+  /* 三線表 */
+  #sheet table { border-collapse: collapse; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); display: block; overflow-x: auto; max-width: 100%; }
+  #sheet th { border-bottom: 1px solid var(--ink); font-weight: 600; }
+  #sheet th, #sheet td { padding: 6px 16px; text-align: left; line-height: 1.7; }
+  #sheet .katex-display { overflow-x: auto; overflow-y: hidden; padding: .3em 0; }
+  #sheet .katex { font-size: 1.08em; }
+  #sheet input[type="checkbox"] { accent-color: var(--accent); margin-right: .45em; }
+
+  /* ---------- 底欄 ---------- */
+  footer {
+    display: flex; justify-content: space-between; gap: 12px; padding: 5px 14px;
+    font-size: 12px; color: var(--muted); background: var(--panel); border-top: 1px solid var(--line);
+  }
+
+  /* ---------- 窄螢幕 ---------- */
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr) minmax(0,1fr); }
+    aside { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
+    .aside-top { padding: 8px; flex: none; }
+    .aside-top button { width: auto; }
+    #doc-list { display: flex; gap: 4px; padding: 8px 8px 8px 0; overflow-x: auto; }
+    #doc-list li { flex: none; max-width: 160px; margin: 0; }
+    #editor { border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; }
+    #preview { padding: 14px; }
+    #sheet { padding: 24px 22px 30px; }
+    .brand { margin-right: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Markdown 暫存</h1>
-  <button id="btn-new" class="primary">+ 新增</button>
-  <button id="btn-rename">改名</button>
-  <button id="btn-delete" class="danger">刪除</button>
-  <button id="btn-import">匯入 .md</button>
-  <button id="btn-export">匯出 .md</button>
+  <div class="brand">
+    <div class="seal" aria-hidden="true">稿</div>
+    <h1>Markdown 稿紙</h1>
+  </div>
+  <div class="group">
+    <button id="btn-rename">改名</button>
+    <button id="btn-delete" class="danger">刪除</button>
+  </div>
+  <div class="group">
+    <button id="btn-import">匯入 .md</button>
+    <button id="btn-export">匯出 .md</button>
+  </div>
   <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden>
-  <label class="toggle" title="開啟後，滑動其中一邊時另一邊會跟著捲動">
-    <input type="checkbox" id="sync-scroll" checked> 同步捲動
-  </label>
-  <span id="status"></span>
+  <div class="group spacer">
+    <label class="toggle" title="開啟後，滑動其中一邊時另一邊會跟著捲動">
+      <input type="checkbox" id="sync-scroll" checked> 同步捲動
+    </label>
+    <button id="btn-theme" title="切換淺色／深色">深色</button>
+  </div>
 </header>
+
 <main>
-  <aside><ul id="doc-list"></ul></aside>
-  <textarea id="editor" spellcheck="false" placeholder="在這裡輸入 Markdown…"></textarea>
-  <div id="preview"></div>
+  <aside>
+    <div class="aside-top"><button id="btn-new" class="primary">新增文件</button></div>
+    <ul id="doc-list"></ul>
+  </aside>
+  <textarea id="editor" spellcheck="false" placeholder="在這裡輸入 Markdown，公式請用 $...$ 或 $$...$$"></textarea>
+  <div id="preview"><article id="sheet"></article></div>
 </main>
 
+<footer>
+  <span id="status">就緒</span>
+  <span id="stats"></span>
+</footer>
+
 <script>
-  marked.setOptions({ gfm: true, breaks: true });
+  if (window.marked) marked.setOptions({ gfm: true, breaks: true });
 
   const KEY = 'md-scratch-docs-v1';
   const $ = id => document.getElementById(id);
-  const editor = $('editor'), preview = $('preview'), list = $('doc-list'), statusEl = $('status');
+  const editor = $('editor'), preview = $('preview'), sheet = $('sheet'),
+        list = $('doc-list'), statusEl = $('status'), statsEl = $('stats');
 
+  /* ---------- 主題 ---------- */
+  const THEME_KEY = 'md-scratch-theme';
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $('btn-theme').textContent = t === 'dark' ? '淺色' : '深色';
+  }
+  let theme;
+  try { theme = localStorage.getItem(THEME_KEY); } catch (e) {}
+  if (theme !== 'light' && theme !== 'dark') {
+    theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  applyTheme(theme);
+  $('btn-theme').onclick = () => {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    applyTheme(theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  };
+
+  /* ---------- 文件資料 ---------- */
   function makeDoc(content = '', title = '') {
     return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), title, content, updated: Date.now() };
   }
+
+  const WELCOME = `# 歡迎使用 Markdown 稿紙
+
+左邊輸入，右邊即時預覽。內容會自動暫存在這個瀏覽器中。
+
+## 數學公式
+
+行內公式：質能方程式 $E = mc^2$，歐拉恆等式 $e^{i\\pi} + 1 = 0$。
+
+獨立公式：
+
+$$
+\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}
+$$
+
+$$
+\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}
+$$
+
+## 其他語法
+
+| 項目 | 說明 |
+| --- | --- |
+| 表格 | 三線表樣式 |
+| 程式碼 | 使用 \`\`\` 包起來 |
+
+- [x] 可以勾選的待辦事項
+- [ ] 用「匯出 .md」下載成檔案
+`;
 
   function loadAll() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && Array.isArray(s.docs) && s.docs.length && s.docs.some(d => d.id === s.currentId)) return s;
     } catch (e) {}
-    const d = makeDoc('# 歡迎使用\n\n左邊輸入 Markdown，右邊即時預覽。\n\n- 內容會自動暫存在這個瀏覽器中\n- 可以用「匯出 .md」下載成檔案');
+    const d = makeDoc(WELCOME);
     return { docs: [d], currentId: d.id };
   }
 
@@ -113,50 +301,96 @@
     return line.slice(0, 30) || '未命名';
   }
 
-  function persist(msg) {
+  function fmtTime(ts) {
+    const d = new Date(ts), p = n => String(n).padStart(2, '0');
+    return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  function persist() {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
-      statusEl.textContent = msg || ('已儲存 ' + new Date().toLocaleTimeString());
+      statusEl.textContent = '已儲存 ' + new Date().toLocaleTimeString();
     } catch (e) {
-      statusEl.textContent = '無法儲存（瀏覽器空間不足或被封鎖）';
+      statusEl.textContent = '無法儲存：瀏覽器空間不足或被封鎖，請先匯出 .md';
     }
   }
 
   let saveTimer;
-  function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => persist(), 400); }
+  function scheduleSave() { statusEl.textContent = '編輯中…'; clearTimeout(saveTimer); saveTimer = setTimeout(persist, 400); }
   function flush() { clearTimeout(saveTimer); persist(); }
 
-  function renderPreview() {
-    preview.innerHTML = DOMPurify.sanitize(marked.parse(current().content));
+  /* ---------- 數學公式（KaTeX） ---------- */
+  // 先把公式抽出來換成佔位符，避免被 Markdown 解析破壞（例如 _ 與 *），
+  // 渲染並消毒 HTML 之後再放回去。程式碼區塊與行內程式碼不處理。
+  const MATH_RE = /(```[\s\S]*?```|`[^`\n]+`)|\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$(?!\s)((?:\\.|[^$\\\n])+?)(?<!\s)\$/g;
+
+  function renderMath(tex, display) {
+    try {
+      return katex.renderToString(tex.trim(), { displayMode: display, throwOnError: false, output: 'htmlAndMathml' });
+    } catch (e) {
+      const esc = String(tex).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      return `<code>${esc}</code>`;
+    }
+  }
+
+  function renderMarkdown(src) {
+    if (!window.marked) return '<p>Markdown 解析器載入失敗，請檢查網路連線後重新整理。</p>';
+    const maths = [];
+    let text = src;
+    if (window.katex) {
+      text = src.replace(MATH_RE, (m, code, d1, d2, i1, i2) => {
+        if (code) return code;
+        const display = d1 !== undefined || d2 !== undefined;
+        const tex = d1 ?? d2 ?? i1 ?? i2;
+        maths.push(renderMath(tex, display));
+        return `MDMATHPH${maths.length - 1}X`;
+      });
+    }
+    let html = marked.parse(text);
+    html = window.DOMPurify ? DOMPurify.sanitize(html) : html;
+    return html.replace(/MDMATHPH(\d+)X/g, (_, i) => maths[+i] ?? '');
+  }
+
+  /* ---------- 畫面 ---------- */
+  function renderPreview() { sheet.innerHTML = renderMarkdown(current().content); }
+
+  function renderStats() {
+    const c = current().content;
+    statsEl.textContent = `${c.replace(/\s/g, '').length} 字 ・ ${c ? c.split('\n').length : 0} 行`;
   }
 
   function renderList() {
     list.innerHTML = '';
     state.docs.forEach(d => {
       const li = document.createElement('li');
-      const t = displayTitle(d);
-      li.textContent = t;
-      li.title = t;
+      li.tabIndex = 0;
       if (d.id === state.currentId) li.classList.add('active');
-      li.onclick = () => { flush(); state.currentId = d.id; render(); };
+      const t = document.createElement('span'); t.className = 'doc-title'; t.textContent = displayTitle(d); t.title = t.textContent;
+      const m = document.createElement('span'); m.className = 'doc-meta'; m.textContent = fmtTime(d.updated);
+      li.append(t, m);
+      const open = () => { flush(); state.currentId = d.id; render(); };
+      li.onclick = open;
+      li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
       list.appendChild(li);
     });
   }
 
   function render() {
-    const d = current();
-    editor.value = d.content;
+    editor.value = current().content;
     renderPreview();
     renderList();
+    renderStats();
+    preview.scrollTop = 0;
+    editor.scrollTop = 0;
   }
 
-  // 編輯
   editor.addEventListener('input', () => {
     const d = current();
     d.content = editor.value;
     d.updated = Date.now();
     renderPreview();
     renderList();
+    renderStats();
     scheduleSave();
   });
 
@@ -165,18 +399,16 @@
     if (e.key === 'Tab') {
       e.preventDefault();
       const s = editor.selectionStart, en = editor.selectionEnd;
-      editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(en);
-      editor.selectionStart = editor.selectionEnd = s + 2;
+      editor.setRangeText('  ', s, en, 'end');
       editor.dispatchEvent(new Event('input'));
     }
   });
 
-  // Ctrl/Cmd + S 立即儲存
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
   });
 
-  // 按鈕
+  /* ---------- 按鈕 ---------- */
   $('btn-new').onclick = () => {
     flush();
     const d = makeDoc('');
@@ -195,7 +427,7 @@
 
   $('btn-delete').onclick = () => {
     const d = current();
-    if (!confirm(`確定刪除「${displayTitle(d)}」？`)) return;
+    if (!confirm(`確定刪除「${displayTitle(d)}」？刪除後無法復原。`)) return;
     state.docs = state.docs.filter(x => x.id !== d.id);
     if (!state.docs.length) state.docs.push(makeDoc(''));
     state.currentId = state.docs[0].id;
@@ -228,7 +460,7 @@
     e.target.value = '';
   };
 
-  // 同步捲動（依比例）
+  /* ---------- 同步捲動（依比例） ---------- */
   const syncBox = $('sync-scroll');
   const SYNC_KEY = 'md-scratch-sync-scroll';
   try { const v = localStorage.getItem(SYNC_KEY); if (v !== null) syncBox.checked = v === '1'; } catch (e) {}
@@ -245,14 +477,12 @@
     if (max <= 0 || dmax <= 0) return;
     syncing = true;
     dst.scrollTop = (src.scrollTop / max) * dmax;
-    // 若目標沒有實際移動，不會觸發 scroll 事件，需手動重置旗標
     requestAnimationFrame(() => { syncing = false; });
   }
   editor.addEventListener('scroll', () => syncFrom(editor, preview));
   preview.addEventListener('scroll', () => syncFrom(preview, editor));
 
   render();
-  statusEl.textContent = '就緒';
 </script>
 </body>
 </html>
