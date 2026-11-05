@@ -90,10 +90,49 @@
   }
   .toggle:hover { background: var(--grid); }
   .toggle input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; cursor: pointer; }
-  .spacer { margin-left: auto; }
+  .group.spacer { margin-left: auto; padding-left: 0; border-left: 0; }
+
+  /* 檢視模式切換（分段按鈕） */
+  .seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--desk); border: 1px solid var(--line); border-radius: 8px; }
+  .seg button { padding: 4px 12px; }
+  .seg button[aria-pressed="true"],
+  .seg button[aria-pressed="true"]:hover {
+    background: var(--paper); color: var(--accent); font-weight: 600;
+    box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.08);
+  }
+  #btn-side { margin-left: 6px; }
+  #btn-side[aria-pressed="false"] { color: var(--muted); }
 
   /* ---------- 主版面 ---------- */
-  main { flex: 1; display: grid; grid-template-columns: 216px minmax(0,1fr) minmax(0,1fr); min-height: 0; }
+  main {
+    --side-w: 216px; --left: 500fr; --right: 500fr;
+    flex: 1; display: grid; min-height: 0;
+    grid-template-columns: var(--side-w) minmax(0,var(--left)) 9px minmax(0,var(--right));
+  }
+  main[data-side="off"] { --side-w: 0px; }
+  main[data-side="off"] aside { visibility: hidden; border-right-width: 0; overflow: hidden; }
+  /* 單一視窗模式：隱藏另一邊與分隔線 */
+  main[data-view="md"], main[data-view="preview"] { grid-template-columns: var(--side-w) minmax(0,1fr); }
+  main[data-view="md"] #preview, main[data-view="md"] #splitter,
+  main[data-view="preview"] #editor, main[data-view="preview"] #splitter { display: none; }
+  /* 純 Markdown 時，讓文字維持適合閱讀的行寬並置中 */
+  main[data-view="md"] #editor { padding-inline: max(30px, calc((100vw - var(--side-w) - 900px) / 2)); }
+
+  /* 可拖曳的分隔線 */
+  #splitter { position: relative; cursor: col-resize; background: var(--panel); touch-action: none; }
+  #splitter::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%);
+    background: var(--line); transition: width .12s, background .12s;
+  }
+  #splitter::after {
+    content: ""; position: absolute; top: 50%; left: 50%; width: 5px; height: 36px; transform: translate(-50%, -50%);
+    border-radius: 3px; background: var(--line); border: 1px solid var(--panel); transition: background .12s;
+  }
+  #splitter:hover::before, #splitter:focus-visible::before, body.dragging #splitter::before { width: 3px; background: var(--accent); }
+  #splitter:hover::after, #splitter:focus-visible::after, body.dragging #splitter::after { background: var(--accent); }
+  #splitter:focus-visible { outline: none; }
+  body.dragging { cursor: col-resize; user-select: none; }
+  body.dragging textarea, body.dragging #preview { pointer-events: none; }
 
   aside { background: var(--desk); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
   .aside-top { padding: 12px; }
@@ -112,7 +151,7 @@
   .doc-meta  { font-size: 12px; color: var(--muted); }
 
   #editor {
-    border: 0; border-right: 1px solid var(--line); resize: none; outline: none; min-height: 0;
+    border: 0; resize: none; outline: none; min-height: 0;
     padding: 28px 30px; background: var(--panel); color: var(--ink); caret-color: var(--accent);
     font: 14px/1.85 "JetBrains Mono", ui-monospace, Consolas, "Noto Sans Mono CJK TC", "Noto Sans TC", monospace;
     tab-size: 2;
@@ -172,8 +211,16 @@
 
   /* ---------- 窄螢幕 ---------- */
   @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr) minmax(0,1fr); }
-    aside { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
+    header { gap: 2px 4px; padding: 6px 10px; }
+    .group + .group, .group.spacer { margin-left: 0; padding-left: 0; border-left: 0; }
+    .group.spacer { margin-left: auto; }
+    button, .toggle { padding: 5px 8px; }
+    main { display: flex; flex-direction: column; }
+    #editor, #preview { flex: 1 1 0; min-height: 0; }
+    #splitter { display: none !important; }
+    main[data-view="md"] #editor { padding-inline: 16px; }
+    main[data-side="off"] aside { display: none; }
+    aside { flex: none; flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
     .aside-top { padding: 8px; flex: none; }
     .aside-top button { width: auto; }
     #doc-list { display: flex; gap: 4px; padding: 8px 8px 8px 0; overflow-x: auto; }
@@ -184,6 +231,21 @@
     .brand { margin-right: 4px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* ---------- 列印／存成 PDF：只印出預覽的稿紙內容 ---------- */
+  @media print {
+    @page { margin: 18mm; }
+    html, body { height: auto; background: #fff; }
+    header, footer, aside, #editor, #splitter { display: none !important; }
+    main { display: block !important; }
+    #preview { display: block !important; overflow: visible; padding: 0; background: #fff; }
+    #sheet {
+      --ink: #111; --paper: #fff; --line: #ccc; --grid: #eee; --panel: #f6f6f6; --muted: #555;
+      --accent: #1F6F66; --seal: #C23B2E;
+      max-width: none; padding: 0; border: 0; box-shadow: none; background: #fff; color: #111;
+    }
+    #sheet pre, #sheet blockquote, #sheet table, #sheet .katex-display { break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
@@ -192,6 +254,14 @@
     <div class="seal" aria-hidden="true">稿</div>
     <h1>Markdown 稿紙</h1>
   </div>
+  <div class="group" role="group" aria-label="檢視模式">
+    <div class="seg">
+      <button data-view="md" aria-pressed="false" title="只顯示 Markdown 原始碼">純 Markdown</button>
+      <button data-view="split" aria-pressed="true" title="左右並排：原始碼與預覽">雙欄</button>
+      <button data-view="preview" aria-pressed="false" title="只顯示預覽">純預覽</button>
+    </div>
+    <button id="btn-side" aria-pressed="true" title="顯示或隱藏左側文件列表">文件列表</button>
+  </div>
   <div class="group">
     <button id="btn-rename">改名</button>
     <button id="btn-delete" class="danger">刪除</button>
@@ -199,22 +269,26 @@
   <div class="group">
     <button id="btn-import">匯入 .md</button>
     <button id="btn-export">匯出 .md</button>
+    <button id="btn-print" title="列印預覽內容，或在列印視窗選擇「另存為 PDF」">列印 / PDF</button>
   </div>
   <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden>
   <div class="group spacer">
-    <label class="toggle" title="開啟後，滑動其中一邊時另一邊會跟著捲動">
+    <label class="toggle" id="sync-label" title="開啟後，滑動其中一邊時另一邊會跟著捲動">
       <input type="checkbox" id="sync-scroll" checked> 同步捲動
     </label>
     <button id="btn-theme" title="切換淺色／深色">深色</button>
   </div>
 </header>
 
-<main>
+<main id="main" data-view="split" data-side="on">
   <aside>
     <div class="aside-top"><button id="btn-new" class="primary">新增文件</button></div>
     <ul id="doc-list"></ul>
   </aside>
   <textarea id="editor" spellcheck="false" placeholder="在這裡輸入 Markdown，公式請用 $...$ 或 $$...$$"></textarea>
+  <div id="splitter" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="調整輸入區與預覽區的寬度（左右方向鍵微調，雙擊還原）"
+       aria-valuemin="15" aria-valuemax="85" aria-valuenow="50"></div>
   <div id="preview"><article id="sheet"></article></div>
 </main>
 
@@ -398,9 +472,7 @@ $$
   editor.addEventListener('keydown', e => {
     if (e.key === 'Tab') {
       e.preventDefault();
-      const s = editor.selectionStart, en = editor.selectionEnd;
-      editor.setRangeText('  ', s, en, 'end');
-      editor.dispatchEvent(new Event('input'));
+      insertText('  ');
     }
   });
 
@@ -482,6 +554,128 @@ $$
   editor.addEventListener('scroll', () => syncFrom(editor, preview));
   preview.addEventListener('scroll', () => syncFrom(preview, editor));
 
+  /* ---------- 在編輯區插入文字（保留復原紀錄） ---------- */
+  function insertText(str) {
+    editor.focus();
+    if (!document.execCommand('insertText', false, str)) {
+      editor.setRangeText(str, editor.selectionStart, editor.selectionEnd, 'end');
+      editor.dispatchEvent(new Event('input'));
+    }
+  }
+
+  function wrapSelection(open, close, placeholder) {
+    const s = editor.selectionStart, e = editor.selectionEnd, v = editor.value, sel = v.slice(s, e);
+    // 已經被包住就取消
+    if (sel && v.slice(s - open.length, s) === open && v.slice(e, e + close.length) === close) {
+      editor.setSelectionRange(s - open.length, e + close.length);
+      insertText(sel);
+      editor.setSelectionRange(s - open.length, s - open.length + sel.length);
+      return;
+    }
+    const text = sel || placeholder;
+    insertText(open + text + close);
+    editor.setSelectionRange(s + open.length, s + open.length + text.length);
+  }
+
+  // Ctrl/Cmd + B 粗體、I 斜體、K 連結
+  editor.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'b') { e.preventDefault(); wrapSelection('**', '**', '粗體文字'); }
+    else if (k === 'i') { e.preventDefault(); wrapSelection('*', '*', '斜體文字'); }
+    else if (k === 'k') {
+      e.preventDefault();
+      const s = editor.selectionStart, sel = editor.value.slice(s, editor.selectionEnd), text = sel || '連結文字';
+      insertText(`[${text}](網址)`);
+      editor.setSelectionRange(s + text.length + 3, s + text.length + 5);
+    }
+  });
+
+  /* ---------- 檢視模式、分隔線、文件列表 ---------- */
+  const mainEl = $('main'), splitter = $('splitter'), syncLabel = $('sync-label');
+  const UI_KEY = 'md-scratch-ui';
+  let ui = { view: 'split', ratio: 0.5, side: true };
+  try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY)) || {}); } catch (e) {}
+  if (!['md', 'split', 'preview'].includes(ui.view)) ui.view = 'split';
+  ui.ratio = Math.min(0.85, Math.max(0.15, Number(ui.ratio) || 0.5));
+  ui.side = ui.side !== false;
+
+  function saveUI() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) {} }
+
+  function applyUI() {
+    mainEl.dataset.view = ui.view;
+    mainEl.dataset.side = ui.side ? 'on' : 'off';
+    const l = Math.round(ui.ratio * 1000);
+    mainEl.style.setProperty('--left', l + 'fr');
+    mainEl.style.setProperty('--right', (1000 - l) + 'fr');
+    splitter.setAttribute('aria-valuenow', Math.round(ui.ratio * 100));
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === ui.view)));
+    const sideBtn = $('btn-side');
+    sideBtn.setAttribute('aria-pressed', String(ui.side));
+    sideBtn.textContent = ui.side ? '隱藏列表' : '顯示列表';
+    syncLabel.style.display = ui.view === 'split' ? '' : 'none';
+  }
+
+  function setView(view) {
+    if (view === ui.view) return;
+    // 從單一視窗切換時，讓新出現的視窗停在相同的閱讀位置
+    const src = ui.view === 'md' ? editor : ui.view === 'preview' ? preview : null;
+    const ratio = src && src.scrollHeight > src.clientHeight ? src.scrollTop / (src.scrollHeight - src.clientHeight) : null;
+    ui.view = view;
+    applyUI();
+    saveUI();
+    if (ratio !== null) {
+      requestAnimationFrame(() => {
+        [editor, preview].forEach(el => {
+          if (el.offsetParent !== null) el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
+        });
+      });
+    }
+  }
+
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  $('btn-side').addEventListener('click', () => { ui.side = !ui.side; applyUI(); saveUI(); });
+  $('btn-print').addEventListener('click', () => window.print());
+
+  // 拖曳分隔線調整寬度
+  function ratioFromPointer(x) {
+    const l = editor.getBoundingClientRect().left, r = preview.getBoundingClientRect().right;
+    const panes = (r - l) - splitter.offsetWidth;
+    if (panes <= 0) return ui.ratio;
+    return Math.min(0.85, Math.max(0.15, (x - splitter.offsetWidth / 2 - l) / panes));
+  }
+  splitter.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    splitter.setPointerCapture(e.pointerId);
+    document.body.classList.add('dragging');
+    e.preventDefault();
+  });
+  splitter.addEventListener('pointermove', e => {
+    if (!document.body.classList.contains('dragging')) return;
+    ui.ratio = ratioFromPointer(e.clientX);
+    applyUI();
+  });
+  const endDrag = () => {
+    if (!document.body.classList.contains('dragging')) return;
+    document.body.classList.remove('dragging');
+    saveUI();
+  };
+  splitter.addEventListener('pointerup', endDrag);
+  splitter.addEventListener('pointercancel', endDrag);
+  splitter.addEventListener('lostpointercapture', endDrag);
+  splitter.addEventListener('dblclick', () => { ui.ratio = 0.5; applyUI(); saveUI(); });
+  splitter.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 0.1 : 0.02;
+    if (e.key === 'ArrowLeft') ui.ratio = Math.max(0.15, ui.ratio - step);
+    else if (e.key === 'ArrowRight') ui.ratio = Math.min(0.85, ui.ratio + step);
+    else if (e.key === 'Home') ui.ratio = 0.5;
+    else return;
+    e.preventDefault();
+    applyUI();
+    saveUI();
+  });
+
+  applyUI();
   render();
 </script>
 </body>
