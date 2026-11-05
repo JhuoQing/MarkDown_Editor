@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown 暫存編輯器</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --border: #e2e2de;
+    --text: #222; --muted: #888; --accent: #3b6cf6; --danger: #d33;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+    font-family: system-ui, -apple-system, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  header {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  button {
+    font: inherit; padding: 6px 12px; border: 1px solid var(--border);
+    background: #fff; border-radius: 6px; cursor: pointer; color: var(--text);
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger:hover { border-color: var(--danger); color: var(--danger); }
+  #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+  main {
+    flex: 1; display: grid; grid-template-columns: 200px 1fr 1fr; min-height: 0;
+  }
+  aside { border-right: 1px solid var(--border); background: var(--panel); overflow: auto; }
+  aside ul { list-style: none; margin: 0; padding: 0; }
+  aside li {
+    padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0ee; font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  aside li:hover { background: #fafafa; }
+  aside li.active { background: #eef3ff; color: var(--accent); font-weight: 600; }
+
+  #editor {
+    border: 0; border-right: 1px solid var(--border); resize: none; outline: none;
+    padding: 16px; background: var(--panel); min-height: 0;
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Consolas, "Noto Sans Mono CJK TC", monospace;
+  }
+  #preview { padding: 16px 24px; overflow: auto; background: var(--panel); min-height: 0; line-height: 1.7; }
+  #preview img { max-width: 100%; }
+  #preview pre { background: #f4f4f2; padding: 12px; overflow: auto; border-radius: 6px; }
+  #preview code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  #preview blockquote { border-left: 3px solid var(--border); margin-left: 0; padding-left: 12px; color: #555; }
+  #preview table { border-collapse: collapse; }
+  #preview th, #preview td { border: 1px solid var(--border); padding: 4px 8px; }
+
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr 1fr; }
+    aside { max-height: 120px; border-right: 0; border-bottom: 1px solid var(--border); }
+    #editor { border-right: 0; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Markdown 暫存</h1>
+  <button id="btn-new" class="primary">+ 新增</button>
+  <button id="btn-rename">改名</button>
+  <button id="btn-delete" class="danger">刪除</button>
+  <button id="btn-import">匯入 .md</button>
+  <button id="btn-export">匯出 .md</button>
+  <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden>
+  <span id="status"></span>
+</header>
+<main>
+  <aside><ul id="doc-list"></ul></aside>
+  <textarea id="editor" spellcheck="false" placeholder="在這裡輸入 Markdown…"></textarea>
+  <div id="preview"></div>
+</main>
+
+<script>
+  marked.setOptions({ gfm: true, breaks: true });
+
+  const KEY = 'md-scratch-docs-v1';
+  const $ = id => document.getElementById(id);
+  const editor = $('editor'), preview = $('preview'), list = $('doc-list'), statusEl = $('status');
+
+  function makeDoc(content = '', title = '') {
+    return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), title, content, updated: Date.now() };
+  }
+
+  function loadAll() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && Array.isArray(s.docs) && s.docs.length && s.docs.some(d => d.id === s.currentId)) return s;
+    } catch (e) {}
+    const d = makeDoc('# 歡迎使用\n\n左邊輸入 Markdown，右邊即時預覽。\n\n- 內容會自動暫存在這個瀏覽器中\n- 可以用「匯出 .md」下載成檔案');
+    return { docs: [d], currentId: d.id };
+  }
+
+  let state = loadAll();
+  const current = () => state.docs.find(d => d.id === state.currentId) || state.docs[0];
+
+  function displayTitle(d) {
+    if (d.title) return d.title;
+    const line = (d.content.split('\n').find(l => l.trim()) || '').replace(/^#+\s*/, '').trim();
+    return line.slice(0, 30) || '未命名';
+  }
+
+  function persist(msg) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+      statusEl.textContent = msg || ('已儲存 ' + new Date().toLocaleTimeString());
+    } catch (e) {
+      statusEl.textContent = '無法儲存（瀏覽器空間不足或被封鎖）';
+    }
+  }
+
+  let saveTimer;
+  function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => persist(), 400); }
+  function flush() { clearTimeout(saveTimer); persist(); }
+
+  function renderPreview() {
+    preview.innerHTML = DOMPurify.sanitize(marked.parse(current().content));
+  }
+
+  function renderList() {
+    list.innerHTML = '';
+    state.docs.forEach(d => {
+      const li = document.createElement('li');
+      const t = displayTitle(d);
+      li.textContent = t;
+      li.title = t;
+      if (d.id === state.currentId) li.classList.add('active');
+      li.onclick = () => { flush(); state.currentId = d.id; render(); };
+      list.appendChild(li);
+    });
+  }
+
+  function render() {
+    const d = current();
+    editor.value = d.content;
+    renderPreview();
+    renderList();
+  }
+
+  // 編輯
+  editor.addEventListener('input', () => {
+    const d = current();
+    d.content = editor.value;
+    d.updated = Date.now();
+    renderPreview();
+    renderList();
+    scheduleSave();
+  });
+
+  // Tab 鍵縮排（兩個空白）
+  editor.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, en = editor.selectionEnd;
+      editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(en);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+
+  // Ctrl/Cmd + S 立即儲存
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
+  });
+
+  // 按鈕
+  $('btn-new').onclick = () => {
+    flush();
+    const d = makeDoc('');
+    state.docs.unshift(d);
+    state.currentId = d.id;
+    render();
+    editor.focus();
+    flush();
+  };
+
+  $('btn-rename').onclick = () => {
+    const d = current();
+    const t = prompt('文件名稱：', displayTitle(d));
+    if (t !== null) { d.title = t.trim(); renderList(); flush(); }
+  };
+
+  $('btn-delete').onclick = () => {
+    const d = current();
+    if (!confirm(`確定刪除「${displayTitle(d)}」？`)) return;
+    state.docs = state.docs.filter(x => x.id !== d.id);
+    if (!state.docs.length) state.docs.push(makeDoc(''));
+    state.currentId = state.docs[0].id;
+    render();
+    flush();
+  };
+
+  $('btn-export').onclick = () => {
+    const d = current();
+    const blob = new Blob([d.content], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = displayTitle(d).replace(/[\\/:*?"<>|]/g, '_') + '.md';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  $('btn-import').onclick = () => $('file-input').click();
+
+  $('file-input').onchange = async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const text = await f.text();
+    flush();
+    const d = makeDoc(text, f.name.replace(/\.(md|markdown|txt)$/i, ''));
+    state.docs.unshift(d);
+    state.currentId = d.id;
+    render();
+    flush();
+    e.target.value = '';
+  };
+
+  render();
+  statusEl.textContent = '就緒';
+</script>
+</body>
+</html>
